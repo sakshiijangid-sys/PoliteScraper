@@ -24,9 +24,13 @@ I will not reuse this code on another site without checking its rules and terms 
 
 `src/index.js` requests only `catalogue/page-1.html` when the local cache is missing. It identifies itself with a descriptive User-Agent, times out after five seconds, accepts only HTTP 200, and saves the response to `cache/catalogue-page-1.html`. Later runs read that saved copy and report `CACHE HIT` without contacting the site or printing the HTML. The cache is ignored by Git.
 
+## Catalogue discovery
+
+The stage 2 script parses each saved HTML page with Cheerio, follows the catalogue's own relative `next` link for exactly three pages, and resolves every book link with JavaScript `new URL(href, pageUrl)`. Duplicate absolute URLs are removed before the summary is printed. Cached pages require no delay; real requests are separated by at least 500 milliseconds.
+
 ## Run
 
-Requires Node.js 18 or newer.
+Requires Node.js 18 or newer and the dependencies in `package.json`.
 
 ```bash
 node src/index.js
