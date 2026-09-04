@@ -37,8 +37,9 @@ function fetchPage(pageUrl) {
 }
 
 function cachePathFor(pageUrl) {
-  const pageName = new URL(pageUrl).pathname.split("/").pop();
-  return path.join(CACHE_DIRECTORY, `catalogue-${pageName}`);
+  const pathname = new URL(pageUrl).pathname;
+  const relativePath = pathname.replace(/^\/catalogue\//, "");
+  return path.join(CACHE_DIRECTORY, `catalogue-${relativePath.replace(/[^a-z0-9.-]/gi, "_")}`);
 }
 
 async function loadCataloguePage(pageUrl) {
@@ -46,8 +47,12 @@ async function loadCataloguePage(pageUrl) {
 
   try {
     const cachedPage = await fs.readFile(cachePath);
-    console.log(`CACHE HIT: ${cachedPage.length} bytes`);
-    return { html: cachedPage.toString("utf8"), fromCache: true };
+    const metadata = await fs.stat(cachePath);
+    return {
+      html: cachedPage.toString("utf8"),
+      fetchedAt: new Date(metadata.mtimeMs).toISOString(),
+      fromCache: true,
+    };
   } catch (error) {
     if (error.code !== "ENOENT") {
       throw error;
@@ -57,8 +62,12 @@ async function loadCataloguePage(pageUrl) {
   const page = await fetchPage(pageUrl);
   await fs.mkdir(CACHE_DIRECTORY, { recursive: true });
   await fs.writeFile(cachePath, page);
-  console.log(`FETCH: ${page.length} bytes`);
-  return { html: page.toString("utf8"), fromCache: false };
+  const metadata = await fs.stat(cachePath);
+  return {
+    html: page.toString("utf8"),
+    fetchedAt: new Date(metadata.mtimeMs).toISOString(),
+    fromCache: false,
+  };
 }
 
 async function isCached(pageUrl) {
@@ -83,8 +92,26 @@ function discoverPage(html, pageUrl) {
   return { bookUrls, nextUrl: nextHref ? new URL(nextHref, pageUrl).href : null };
 }
 
+function extractBookDetails(html, productUrl, sourcePage, fetchedAt) {
+  const document = cheerio.load(html);
+  const productArea = document(".product_page .product_main");
+  const description = productArea.closest(".product_page").find("#product_description").next("p").text().trim();
+
+  return {
+    title: productArea.find("h1").first().text().trim(),
+    product_url: productUrl,
+    price_text: productArea.find(".price_color").first().text().trim(),
+    availability_text: productArea.find(".availability").first().text().replace(/\s+/g, " ").trim(),
+    rating_text: productArea.find(".star-rating").first().attr("class")?.replace("star-rating", "").trim() ?? null,
+    description: description || null,
+    source_page: sourcePage,
+    fetched_at: fetchedAt,
+  };
+}
+
 async function discoverCatalogue() {
   const uniqueUrls = new Set();
+  const sourcePages = new Map();
   let pageUrl = PAGE_URL;
   let cataloguePages = 0;
   let discoveredCount = 0;
@@ -93,7 +120,10 @@ async function discoverCatalogue() {
     const page = await loadCataloguePage(pageUrl);
     const discovered = discoverPage(page.html, pageUrl);
     discoveredCount += discovered.bookUrls.length;
-    discovered.bookUrls.forEach((bookUrl) => uniqueUrls.add(bookUrl));
+    discovered.bookUrls.forEach((bookUrl) => {
+      uniqueUrls.add(bookUrl);
+      sourcePages.set(bookUrl, pageUrl);
+    });
     cataloguePages += 1;
 
     if (
@@ -106,9 +136,31 @@ async function discoverCatalogue() {
     pageUrl = discovered.nextUrl;
   }
 
+  const records = [];
+  let hadNetworkDetailRequest = false;
+  for (const productUrl of uniqueUrls) {
+    const cached = await isCached(productUrl);
+    if (hadNetworkDetailRequest && !cached) {
+      await new Promise((resolve) => setTimeout(resolve, REQUEST_DELAY_MS));
+    }
+
+    const page = await loadCataloguePage(productUrl);
+    records.push(
+      extractBookDetails(
+        page.html,
+        productUrl,
+        sourcePages.get(productUrl),
+        page.fetchedAt
+      )
+    );
+    hadNetworkDetailRequest = hadNetworkDetailRequest || !page.fromCache;
+  }
+
+  console.log(JSON.stringify(records[0], null, 2));
   console.log(`catalogue_pages=${cataloguePages}`);
   console.log(`discovered=${discoveredCount}`);
   console.log(`unique_urls=${uniqueUrls.size}`);
+  console.log(`detail_pages=${records.length}`);
 }
 
 discoverCatalogue().catch((error) => {

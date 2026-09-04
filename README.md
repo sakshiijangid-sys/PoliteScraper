@@ -28,6 +28,10 @@ I will not reuse this code on another site without checking its rules and terms 
 
 The stage 2 script parses each saved HTML page with Cheerio, follows the catalogue's own relative `next` link for exactly three pages, and resolves every book link with JavaScript `new URL(href, pageUrl)`. Duplicate absolute URLs are removed before the summary is printed. Cached pages require no delay; real requests are separated by at least 500 milliseconds.
 
+## Detail extraction
+
+The stage 3 script fetches and caches each of the 60 product pages with the same identifying User-Agent, five-second timeout, HTTP 200 check, and 500-millisecond minimum delay for real requests. It parses the product area only and prints one raw record containing `title`, `product_url`, `price_text`, `availability_text`, `rating_text`, `description`, `source_page`, and `fetched_at`. Missing descriptions are stored as `null`; detail caches are reused on later runs.
+
 ## Run
 
 Requires Node.js 18 or newer and the dependencies in `package.json`.
