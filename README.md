@@ -1,2 +1,29 @@
 # PoliteScraper
-Polite scraping pipeline that turns messy HTML into clean, checked JSON records, survives a broken page without crashing and ends every run with a small report of what happened.
+
+Polite scraping pipeline that turns HTML into JSON records while keeping the learning scope small and deliberate.
+
+A small learning scraper for the Books section of the ToScrape Web Scraping Sandbox.
+
+The requested `toscreape.com` address did not resolve. The related working site, `toscrape.com`, describes itself as a “Web Scraping Sandbox” and says its Books target is a fictional bookstore that wants to be scraped. It lists 1,000 items, pagination, up to 20 items per page, and no JavaScript requirement.
+
+## Target classification
+
+- **Which site:** `https://books.toscrape.com/`, the fictional bookstore in the ToScrape sandbox.
+- **Why:** It is explicitly provided as a safe place for beginners to learn scraping and validate scraping tools.
+- **How much:** Three catalogue pages, requested one at a time with a one-second delay between pages.
+- **What data is collected:** Book title, price, availability, star-rating label, and product URL.
+- **Why this is appropriate:** The site explicitly invites scraping for learning and testing, and this project keeps the request volume small and deliberate.
+
+## Robots result
+
+I requested `https://books.toscrape.com/robots.txt` once. The server returned **HTTP 404 Not Found** with an nginx 1.21.6 error page, so no robots directives were available: **no robots file found**.
+
+I will not reuse this code on another site without checking its rules and terms first.
+
+## Run
+
+Requires Node.js 18 or newer.
+
+```bash
+node src/index.js
+```
