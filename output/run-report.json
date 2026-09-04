@@ -1,0 +1,15 @@
+{
+  "started_at": "2026-09-04T15:44:20.134Z",
+  "duration_ms": 372,
+  "pages_fetched": 0,
+  "cache_hits": 63,
+  "valid_records": 60,
+  "invalid_records": 0,
+  "failed_pages": 1,
+  "failed_page_details": [
+    {
+      "page_url": "https://invalid.example.invalid/made-up-book.html",
+      "reason": "getaddrinfo ENOTFOUND invalid.example.invalid"
+    }
+  ]
+}

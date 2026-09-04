@@ -50,6 +50,10 @@ fetched_at: ISO datetime string, required
 
 Valid records overwrite `output/books.json`; failed records are written with their validation reason to `output/errors.json` and never enter `books.json`. Repeated runs keep one record per absolute `product_url`.
 
+## Run reports and failures
+
+Each run writes `output/run-report.json` with `started_at`, `duration_ms`, `pages_fetched`, `cache_hits`, `valid_records`, `invalid_records`, `failed_pages`, and `failed_page_details`. Pages are isolated: timeout and HTTP 5xx failures wait briefly and retry once; HTTP 403, HTTP 404, and other failures are logged and skipped without retrying. The local-only `INJECT_FAKE_URL=1` environment switch was used to prove that one made-up URL produces `failed_pages: 1` while `books.json` still contains the 60 good records; it is not enabled by default.
+
 ## Run
 
 Requires Node.js 18 or newer and the dependencies in `package.json`.

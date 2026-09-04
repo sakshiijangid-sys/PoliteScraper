@@ -9,6 +9,7 @@ const CACHE_DIRECTORY = path.join(__dirname, "..", "cache");
 const OUTPUT_DIRECTORY = path.join(__dirname, "..", "output");
 const REQUEST_TIMEOUT_MS = 5000;
 const REQUEST_DELAY_MS = 500;
+const RETRY_DELAY_MS = 250;
 const USER_AGENT =
   "PoliteScraper/1.0 (sakshiijangid-sys; https://github.com/sakshiijangid-sys/PoliteScraper)";
 
@@ -20,7 +21,9 @@ function fetchPage(pageUrl) {
       (response) => {
         if (response.statusCode !== 200) {
           response.resume();
-          reject(new Error(`Fetch failed with HTTP ${response.statusCode}`));
+          const error = new Error(`Fetch failed with HTTP ${response.statusCode}`);
+          error.statusCode = response.statusCode;
+          reject(error);
           return;
         }
 
@@ -32,10 +35,17 @@ function fetchPage(pageUrl) {
     );
 
     request.setTimeout(REQUEST_TIMEOUT_MS, () => {
-      request.destroy(new Error(`Fetch timed out after ${REQUEST_TIMEOUT_MS} ms`));
+      const error = new Error(`Fetch timed out after ${REQUEST_TIMEOUT_MS} ms`);
+      error.code = "ETIMEDOUT";
+      request.destroy(error);
     });
     request.on("error", reject);
   });
+}
+
+function shouldRetry(error) {
+  return error.code === "ETIMEDOUT" || error.code === "ECONNRESET" ||
+    (error.statusCode >= 500 && error.statusCode <= 599);
 }
 
 function cachePathFor(pageUrl) {
@@ -44,12 +54,13 @@ function cachePathFor(pageUrl) {
   return path.join(CACHE_DIRECTORY, `catalogue-${relativePath.replace(/[^a-z0-9.-]/gi, "_")}`);
 }
 
-async function loadCataloguePage(pageUrl) {
+async function loadCataloguePage(pageUrl, report) {
   const cachePath = cachePathFor(pageUrl);
 
   try {
     const cachedPage = await fs.readFile(cachePath);
     const metadata = await fs.stat(cachePath);
+    report.cache_hits += 1;
     return {
       html: cachedPage.toString("utf8"),
       fetchedAt: new Date(metadata.mtimeMs).toISOString(),
@@ -61,9 +72,22 @@ async function loadCataloguePage(pageUrl) {
     }
   }
 
-  const page = await fetchPage(pageUrl);
+  let page;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      page = await fetchPage(pageUrl);
+      break;
+    } catch (error) {
+      if (attempt === 0 && shouldRetry(error)) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+        continue;
+      }
+      throw error;
+    }
+  }
   await fs.mkdir(CACHE_DIRECTORY, { recursive: true });
   await fs.writeFile(cachePath, page);
+  report.pages_fetched += 1;
   const metadata = await fs.stat(cachePath);
   return {
     html: page.toString("utf8"),
@@ -144,6 +168,17 @@ async function writeValidatedRecords(records) {
 }
 
 async function discoverCatalogue() {
+  const startedAt = Date.now();
+  const report = {
+    started_at: new Date(startedAt).toISOString(),
+    duration_ms: 0,
+    pages_fetched: 0,
+    cache_hits: 0,
+    valid_records: 0,
+    invalid_records: 0,
+    failed_pages: 0,
+    failed_page_details: [],
+  };
   const uniqueUrls = new Set();
   const sourcePages = new Map();
   let pageUrl = PAGE_URL;
@@ -151,7 +186,14 @@ async function discoverCatalogue() {
   let discoveredCount = 0;
 
   while (cataloguePages < 3 && pageUrl) {
-    const page = await loadCataloguePage(pageUrl);
+    let page;
+    try {
+      page = await loadCataloguePage(pageUrl, report);
+    } catch (error) {
+      report.failed_pages += 1;
+      report.failed_page_details.push({ page_url: pageUrl, reason: error.message });
+      break;
+    }
     const discovered = discoverPage(page.html, pageUrl);
     discoveredCount += discovered.bookUrls.length;
     discovered.bookUrls.forEach((bookUrl) => {
@@ -170,6 +212,11 @@ async function discoverCatalogue() {
     pageUrl = discovered.nextUrl;
   }
 
+  if (process.env.INJECT_FAKE_URL === "1") {
+    uniqueUrls.add("https://invalid.example.invalid/made-up-book.html");
+    sourcePages.set("https://invalid.example.invalid/made-up-book.html", PAGE_URL);
+  }
+
   const records = [];
   let hadNetworkDetailRequest = false;
   for (const productUrl of uniqueUrls) {
@@ -178,19 +225,32 @@ async function discoverCatalogue() {
       await new Promise((resolve) => setTimeout(resolve, REQUEST_DELAY_MS));
     }
 
-    const page = await loadCataloguePage(productUrl);
-    records.push(
-      extractBookDetails(
-        page.html,
-        productUrl,
-        sourcePages.get(productUrl),
-        page.fetchedAt
-      )
-    );
-    hadNetworkDetailRequest = hadNetworkDetailRequest || !page.fromCache;
+    let page;
+    try {
+      page = await loadCataloguePage(productUrl, report);
+      records.push(
+        extractBookDetails(
+          page.html,
+          productUrl,
+          sourcePages.get(productUrl),
+          page.fetchedAt
+        )
+      );
+    } catch (error) {
+      report.failed_pages += 1;
+      report.failed_page_details.push({ page_url: productUrl, reason: error.message });
+    }
+    if (page) {
+      hadNetworkDetailRequest = hadNetworkDetailRequest || !page.fromCache;
+    }
   }
 
   const { books, errors } = await writeValidatedRecords(records);
+  report.valid_records = books.length;
+  report.invalid_records = errors.length;
+  report.duration_ms = Date.now() - startedAt;
+  await fs.mkdir(OUTPUT_DIRECTORY, { recursive: true });
+  await fs.writeFile(path.join(OUTPUT_DIRECTORY, "run-report.json"), `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(books[0] ?? records[0], null, 2));
   console.log(`catalogue_pages=${cataloguePages}`);
   console.log(`discovered=${discoveredCount}`);
