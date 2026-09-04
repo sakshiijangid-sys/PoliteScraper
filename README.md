@@ -32,6 +32,24 @@ The stage 2 script parses each saved HTML page with Cheerio, follows the catalog
 
 The stage 3 script fetches and caches each of the 60 product pages with the same identifying User-Agent, five-second timeout, HTTP 200 check, and 500-millisecond minimum delay for real requests. It parses the product area only and prints one raw record containing `title`, `product_url`, `price_text`, `availability_text`, `rating_text`, `description`, `source_page`, and `fetched_at`. Missing descriptions are stored as `null`; detail caches are reused on later runs.
 
+## Normalized records
+
+Stage 4 keeps `price_text` and adds the numeric `ptice_gbp` value. The finished record is defined by `bookRecordSchema` in `src/schema.js` and validated with Zod before storage:
+
+```text
+title: string, required
+product_url: URL string, required and canonical record identity
+price_text: non-empty string, required
+ptice_gbp: non-negative number, required
+availability_text: non-empty string, required
+rating_text: string or null, required
+description: non-empty string, null, or omitted, optional
+source_page: URL string, required
+fetched_at: ISO datetime string, required
+```
+
+Valid records overwrite `output/books.json`; failed records are written with their validation reason to `output/errors.json` and never enter `books.json`. Repeated runs keep one record per absolute `product_url`.
+
 ## Run
 
 Requires Node.js 18 or newer and the dependencies in `package.json`.

@@ -2,9 +2,11 @@ const https = require("node:https");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const cheerio = require("cheerio");
+const { bookRecordSchema } = require("./schema");
 
 const PAGE_URL = "https://books.toscrape.com/catalogue/page-1.html";
 const CACHE_DIRECTORY = path.join(__dirname, "..", "cache");
+const OUTPUT_DIRECTORY = path.join(__dirname, "..", "output");
 const REQUEST_TIMEOUT_MS = 5000;
 const REQUEST_DELAY_MS = 500;
 const USER_AGENT =
@@ -101,12 +103,44 @@ function extractBookDetails(html, productUrl, sourcePage, fetchedAt) {
     title: productArea.find("h1").first().text().trim(),
     product_url: productUrl,
     price_text: productArea.find(".price_color").first().text().trim(),
+    ptice_gbp: Number.parseFloat(
+      productArea.find(".price_color").first().text().replace(/[^0-9.]/g, "")
+    ),
     availability_text: productArea.find(".availability").first().text().replace(/\s+/g, " ").trim(),
     rating_text: productArea.find(".star-rating").first().attr("class")?.replace("star-rating", "").trim() ?? null,
     description: description || null,
     source_page: sourcePage,
     fetched_at: fetchedAt,
   };
+}
+
+async function writeValidatedRecords(records) {
+  const books = [];
+  const errors = [];
+  const seenUrls = new Set();
+
+  for (const record of records) {
+    if (seenUrls.has(record.product_url)) {
+      continue;
+    }
+    seenUrls.add(record.product_url);
+
+    const result = bookRecordSchema.safeParse(record);
+    if (result.success) {
+      books.push(result.data);
+    } else {
+      errors.push({
+        product_url: record.product_url,
+        reason: result.error.issues.map((issue) => issue.message).join("; "),
+        record,
+      });
+    }
+  }
+
+  await fs.mkdir(OUTPUT_DIRECTORY, { recursive: true });
+  await fs.writeFile(path.join(OUTPUT_DIRECTORY, "books.json"), `${JSON.stringify(books, null, 2)}\n`);
+  await fs.writeFile(path.join(OUTPUT_DIRECTORY, "errors.json"), `${JSON.stringify(errors, null, 2)}\n`);
+  return { books, errors };
 }
 
 async function discoverCatalogue() {
@@ -156,11 +190,14 @@ async function discoverCatalogue() {
     hadNetworkDetailRequest = hadNetworkDetailRequest || !page.fromCache;
   }
 
-  console.log(JSON.stringify(records[0], null, 2));
+  const { books, errors } = await writeValidatedRecords(records);
+  console.log(JSON.stringify(books[0] ?? records[0], null, 2));
   console.log(`catalogue_pages=${cataloguePages}`);
   console.log(`discovered=${discoveredCount}`);
   console.log(`unique_urls=${uniqueUrls.size}`);
   console.log(`detail_pages=${records.length}`);
+  console.log(`valid_records=${books.length}`);
+  console.log(`invalid_records=${errors.length}`);
 }
 
 discoverCatalogue().catch((error) => {
