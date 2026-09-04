@@ -54,10 +54,67 @@ Valid records overwrite `output/books.json`; failed records are written with the
 
 Each run writes `output/run-report.json` with `started_at`, `duration_ms`, `pages_fetched`, `cache_hits`, `valid_records`, `invalid_records`, `failed_pages`, and `failed_page_details`. Pages are isolated: timeout and HTTP 5xx failures wait briefly and retry once; HTTP 403, HTTP 404, and other failures are logged and skipped without retrying. The local-only `INJECT_FAKE_URL=1` environment switch was used to prove that one made-up URL produces `failed_pages: 1` while `books.json` still contains the 60 good records; it is not enabled by default.
 
-## Run
+## Language and installation
 
-Requires Node.js 18 or newer and the dependencies in `package.json`.
+This project uses JavaScript on Node.js 18 or newer. From PowerShell, install dependencies and run it with this one copy-pastable command:
 
-```bash
-node src/index.js
+```powershell
+npm install; node src/index.js
 ```
+
+The run writes normalized records to `output/books.json`, validation failures to `output/errors.json`, and its evidence report to `output/run-report.json`.
+
+## Record schema
+
+Every stored book must match the Zod schema in `src/schema.js`:
+
+```text
+title: string, required
+product_url: URL string, required; canonical identity
+price_text: non-empty string, required; original displayed price
+ptice_gbp: non-negative number, required; normalized price
+availability_text: non-empty string, required
+rating_text: string or null, required
+description: non-empty string, null, or omitted, optional
+source_page: URL string, required
+fetched_at: ISO datetime string, required
+```
+
+## Politeness rules
+
+- The User-Agent names `PoliteScraper`, the project owner, and the repository URL.
+- Every network request has a five-second timeout and accepts only HTTP 200 as page content.
+- Real requests are separated by at least 500 milliseconds; cached pages never wait or contact the site.
+- Catalogue pagination follows the site's own links and stops after three pages.
+- A timeout or HTTP 5xx gets one retry after a short wait; HTTP 403 and 404 are not retried.
+- The cache is local and ignored by Git, so repeated development runs do not repeatedly request the site.
+
+## Evidence
+
+This is the complete `output/run-report.json` from the local failure-isolation proof. One made-up URL was injected locally; no real site failure was induced:
+
+```json
+{
+	"started_at": "2026-09-04T15:44:20.134Z",
+	"duration_ms": 372,
+	"pages_fetched": 0,
+	"cache_hits": 63,
+	"valid_records": 60,
+	"invalid_records": 0,
+	"failed_pages": 1,
+	"failed_page_details": [
+		{
+			"page_url": "https://invalid.example.invalid/made-up-book.html",
+			"reason": "getaddrinfo ENOTFOUND invalid.example.invalid"
+		}
+	]
+}
+```
+
+## Browser note
+
+This assignment needed no browser because the required data is already in the HTML the server sends.
+
+## Limitation and ethics
+
+One honest limitation: the parser depends on the target site's current HTML class names and can need maintenance if that markup changes. This is a small educational scraper for the explicitly provided sandbox; I will check each site's rules and terms before reusing the code, keep request volume low, and avoid collecting data that is not needed.
