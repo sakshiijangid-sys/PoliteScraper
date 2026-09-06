@@ -82,6 +82,16 @@ curl.exe -i http://localhost:3000/health
 
 The endpoint returns HTTP 200 with `{"status":"ok"}`.
 
+## Aggregation report
+
+Run the report test to print shop and bookstore aggregates as one JSON object:
+
+```powershell
+npm run report
+```
+
+The shop report includes order count, revenue, top products by revenue, and daily orders for the last seven days. The bookstore report includes book count, average price, five most expensive books, and counts grouped by star rating.
+
 ## Record schema
 
 Every stored book must match the Zod schema in `src/schema.js`:
