@@ -185,7 +185,7 @@ async function discoverCatalogue() {
   let cataloguePages = 0;
   let discoveredCount = 0;
 
-  while (cataloguePages < 3 && pageUrl) {
+  while (cataloguePages < 10 && pageUrl) {
     let page;
     try {
       page = await loadCataloguePage(pageUrl, report);

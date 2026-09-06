@@ -10,7 +10,7 @@ The requested `toscreape.com` address did not resolve. The related working site,
 
 - **Which site:** `https://books.toscrape.com/`, the fictional bookstore in the ToScrape sandbox.
 - **Why:** It is explicitly provided as a safe place for beginners to learn scraping and validate scraping tools.
-- **How much:** Three catalogue pages, requested one at a time with a one-second delay between pages.
+- **How much:** Ten catalogue pages, requested one at a time with a one-second delay between pages.
 - **What data is collected:** Book title, price, availability, star-rating label, and product URL.
 - **Why this is appropriate:** The site explicitly invites scraping for learning and testing, and this project keeps the request volume small and deliberate.
 
@@ -26,11 +26,11 @@ I will not reuse this code on another site without checking its rules and terms 
 
 ## Catalogue discovery
 
-The stage 2 script parses each saved HTML page with Cheerio, follows the catalogue's own relative `next` link for exactly three pages, and resolves every book link with JavaScript `new URL(href, pageUrl)`. Duplicate absolute URLs are removed before the summary is printed. Cached pages require no delay; real requests are separated by at least 500 milliseconds.
+The stage 2 script parses each saved HTML page with Cheerio, follows the catalogue's own relative `next` link for exactly ten pages, and resolves every book link with JavaScript `new URL(href, pageUrl)`. Duplicate absolute URLs are removed before the summary is printed. Cached pages require no delay; real requests are separated by at least 500 milliseconds.
 
 ## Detail extraction
 
-The stage 3 script fetches and caches each of the 60 product pages with the same identifying User-Agent, five-second timeout, HTTP 200 check, and 500-millisecond minimum delay for real requests. It parses the product area only and prints one raw record containing `title`, `product_url`, `price_text`, `availability_text`, `rating_text`, `description`, `source_page`, and `fetched_at`. Missing descriptions are stored as `null`; detail caches are reused on later runs.
+The stage 3 script fetches and caches each of the 200 product pages with the same identifying User-Agent, five-second timeout, HTTP 200 check, and 500-millisecond minimum delay for real requests. It parses the product area only and prints one raw record containing `title`, `product_url`, `price_text`, `availability_text`, `rating_text`, `description`, `source_page`, and `fetched_at`. Missing descriptions are stored as `null`; detail caches are reused on later runs.
 
 ## Normalized records
 
@@ -52,7 +52,7 @@ Valid records overwrite `output/books.json`; failed records are written with the
 
 ## Run reports and failures
 
-Each run writes `output/run-report.json` with `started_at`, `duration_ms`, `pages_fetched`, `cache_hits`, `valid_records`, `invalid_records`, `failed_pages`, and `failed_page_details`. Pages are isolated: timeout and HTTP 5xx failures wait briefly and retry once; HTTP 403, HTTP 404, and other failures are logged and skipped without retrying. The local-only `INJECT_FAKE_URL=1` environment switch was used to prove that one made-up URL produces `failed_pages: 1` while `books.json` still contains the 60 good records; it is not enabled by default.
+Each run writes `output/run-report.json` with `started_at`, `duration_ms`, `pages_fetched`, `cache_hits`, `valid_records`, `invalid_records`, `failed_pages`, and `failed_page_details`. Pages are isolated: timeout and HTTP 5xx failures wait briefly and retry once; HTTP 403, HTTP 404, and other failures are logged and skipped without retrying. The local-only `INJECT_FAKE_URL=1` environment switch was used to prove that one made-up URL produces `failed_pages: 1` while `books.json` still contains the 200 good records; it is not enabled by default.
 
 ## Language and installation
 
