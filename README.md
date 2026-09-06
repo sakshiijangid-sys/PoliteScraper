@@ -92,6 +92,16 @@ npm run report
 
 The shop report includes order count, revenue, top products by revenue, and daily orders for the last seven days. The bookstore report includes book count, average price, five most expensive books, and counts grouped by star rating.
 
+## PDF report
+
+Render the report object to an A4 PDF with Playwright:
+
+```powershell
+npm run pdf
+```
+
+The PDF is saved to `reports/test.pdf`. Its print stylesheet repeats table headers and keeps rows together across page breaks.
+
 ## Record schema
 
 Every stored book must match the Zod schema in `src/schema.js`:

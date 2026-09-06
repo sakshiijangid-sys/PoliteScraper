@@ -55,6 +55,9 @@ function getReportData() {
         LIMIT 5
       `)
       .all(),
+    allBooks: database
+      .prepare("SELECT id, title, price, rating, url FROM books ORDER BY id")
+      .all(),
     booksPerRating: database
       .prepare(`
         SELECT rating, COUNT(*) AS books
