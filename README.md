@@ -64,6 +64,24 @@ npm install; node src/index.js
 
 The run writes normalized records to `output/books.json`, validation failures to `output/errors.json`, and its evidence report to `output/run-report.json`.
 
+## Health server and PDF setup
+
+Install the Node Playwright package and Chromium browser, then start the health server:
+
+```powershell
+npm install playwright
+npx playwright install chromium
+npm start
+```
+
+In another PowerShell window, verify the server:
+
+```powershell
+curl.exe -i http://localhost:3000/health
+```
+
+The endpoint returns HTTP 200 with `{"status":"ok"}`.
+
 ## Record schema
 
 Every stored book must match the Zod schema in `src/schema.js`:
