@@ -4,6 +4,7 @@ const path = require("node:path");
 const {
   createReportRecord,
   deleteReportRecord,
+  getReportForDate,
   getReportRecord,
   updateReportPath,
 } = require("./report");
@@ -20,7 +21,14 @@ function sendJson(response, statusCode, body) {
 async function createReport(response) {
   let report;
   try {
-    report = createReportRecord("", new Date().toISOString());
+    const createdAt = new Date().toISOString();
+    const existingReport = getReportForDate(createdAt.slice(0, 10));
+    if (existingReport) {
+      sendJson(response, 200, { id: existingReport.id, file: existingReport.file });
+      return;
+    }
+
+    report = createReportRecord("", createdAt);
     const reportPath = path.join(REPORTS_DIRECTORY, `${report.id}.pdf`);
     await new Promise((resolve) => setTimeout(resolve, 500));
     await renderReportPdf(reportPath);

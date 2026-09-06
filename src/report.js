@@ -91,6 +91,19 @@ function getReportRecord(id) {
   return report ? { ...report, file: `/reports/${report.id}/file` } : null;
 }
 
+function getReportForDate(date) {
+  const report = database
+    .prepare(`
+      SELECT id, path, created_at
+      FROM reports
+      WHERE substr(created_at, 1, 10) = ?
+      ORDER BY id DESC
+      LIMIT 1
+    `)
+    .get(date);
+  return report ? { ...report, file: `/reports/${report.id}/file` } : null;
+}
+
 function updateReportPath(id, reportPath) {
   database.prepare("UPDATE reports SET path = ? WHERE id = ?").run(reportPath, id);
   return getReportRecord(id);
@@ -104,6 +117,7 @@ module.exports = {
   createReportRecord,
   deleteReportRecord,
   getReportData,
+  getReportForDate,
   getReportRecord,
   updateReportPath,
 };

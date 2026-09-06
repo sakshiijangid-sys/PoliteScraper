@@ -115,6 +115,8 @@ curl.exe -o my-report.pdf http://localhost:3000/reports/1/file
 
 The POST waits for PDF generation, returns `201`, stores the report metadata in `report.db`, and returns a link such as `/reports/1/file`. The metadata endpoint returns the stored row and file link; the file endpoint serves the PDF from disk.
 
+Repeated POST requests on the same day reuse that day's report and return `200` with the existing ID and file link.
+
 ## Record schema
 
 Every stored book must match the Zod schema in `src/schema.js`:
