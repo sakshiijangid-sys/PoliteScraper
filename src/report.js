@@ -9,6 +9,12 @@ database.exec(`
     product TEXT NOT NULL,
     amount REAL NOT NULL,
     ordered_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS reports (
+    id INTEGER PRIMARY KEY,
+    path TEXT NOT NULL,
+    created_at TEXT NOT NULL
   )
 `);
 
@@ -71,4 +77,33 @@ function getReportData() {
   return { shop, bookstore };
 }
 
-module.exports = { getReportData };
+function createReportRecord(reportPath, createdAt) {
+  const result = database
+    .prepare("INSERT INTO reports (path, created_at) VALUES (?, ?)")
+    .run(reportPath, createdAt);
+  return getReportRecord(Number(result.lastInsertRowid));
+}
+
+function getReportRecord(id) {
+  const report = database
+    .prepare("SELECT id, path, created_at FROM reports WHERE id = ?")
+    .get(id);
+  return report ? { ...report, file: `/reports/${report.id}/file` } : null;
+}
+
+function updateReportPath(id, reportPath) {
+  database.prepare("UPDATE reports SET path = ? WHERE id = ?").run(reportPath, id);
+  return getReportRecord(id);
+}
+
+function deleteReportRecord(id) {
+  database.prepare("DELETE FROM reports WHERE id = ?").run(id);
+}
+
+module.exports = {
+  createReportRecord,
+  deleteReportRecord,
+  getReportData,
+  getReportRecord,
+  updateReportPath,
+};

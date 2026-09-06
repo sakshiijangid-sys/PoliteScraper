@@ -102,6 +102,19 @@ npm run pdf
 
 The PDF is saved to `reports/test.pdf`. Its print stylesheet repeats table headers and keeps rows together across page breaks.
 
+## Linked report generation
+
+Start the server and create a stored report:
+
+```powershell
+npm start
+curl.exe -i -X POST http://localhost:3000/reports
+curl.exe -i http://localhost:3000/reports/1
+curl.exe -o my-report.pdf http://localhost:3000/reports/1/file
+```
+
+The POST waits for PDF generation, returns `201`, stores the report metadata in `report.db`, and returns a link such as `/reports/1/file`. The metadata endpoint returns the stored row and file link; the file endpoint serves the PDF from disk.
+
 ## Record schema
 
 Every stored book must match the Zod schema in `src/schema.js`:
