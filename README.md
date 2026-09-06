@@ -2,6 +2,85 @@
 
 Polite scraping pipeline that turns HTML into JSON records while keeping the learning scope small and deliberate.
 
+This project collects a small, local report from the Books to Scrape learning dataset, stores normalized books in SQLite, and renders a linked HTML-to-PDF report. Generated `report.db` and `reports/` files are local runtime artifacts and are ignored by Git.
+
+## Dataset and setup
+
+The dataset is the first 200 books from [Books to Scrape](https://books.toscrape.com/), an explicitly provided web-scraping sandbox. The scraper stores title, price, availability, star rating, product URL, description, source page, and fetch time in `output/books.json`.
+
+Install dependencies and seed the local database:
+
+```powershell
+npm install
+npm run seed
+```
+
+Run the aggregation report, create a PDF, or start the HTTP server:
+
+```powershell
+npm run report
+npm run pdf
+npm start
+```
+
+The server exposes `GET /health`, `POST /reports`, `GET /reports/:id`, and `GET /reports/:id/file`. A same-day repeated POST reuses the existing report and returns `200` instead of generating a second PDF.
+
+## Aggregated SQL
+
+The report uses these SQLite queries:
+
+```sql
+SELECT COUNT(*) AS total_orders FROM orders;
+
+SELECT COALESCE(SUM(amount), 0) AS total_revenue FROM orders;
+
+SELECT product, SUM(amount) AS revenue
+FROM orders
+GROUP BY product
+ORDER BY revenue DESC
+LIMIT 5;
+
+SELECT date(ordered_at) AS day, COUNT(*) AS orders
+FROM orders
+WHERE date(ordered_at) >= date('now', '-6 days')
+GROUP BY day
+ORDER BY day;
+
+SELECT COUNT(*) AS total_books FROM books;
+
+SELECT AVG(price) AS average_price FROM books;
+
+SELECT id, title, price, rating, url
+FROM books
+ORDER BY price DESC
+LIMIT 5;
+
+SELECT rating, COUNT(*) AS books
+FROM books
+GROUP BY rating
+ORDER BY rating;
+```
+
+## POST-to-download proof
+
+With the server running, report generation waits for the PDF and returns a link:
+
+```powershell
+curl.exe -i -X POST http://localhost:3000/reports
+HTTP/1.1 201 Created
+{"id":1,"file":"/reports/1/file"}
+
+curl.exe -i http://localhost:3000/reports/1
+HTTP/1.1 200 OK
+{"id":1,"path":"reports/1.pdf","created_at":"2026-09-06T10:39:48.537Z","file":"/reports/1/file"}
+
+curl.exe -o my-report.pdf http://localhost:3000/reports/1/file
+```
+
+The downloaded file is a real PDF beginning with the `%PDF` signature. A second POST on the same day returns `200` with the same ID and link.
+
+![Page 1 of the generated PDF](docs/report-page-1.png)
+
 A small learning scraper for the Books section of the ToScrape Web Scraping Sandbox.
 
 The requested `toscreape.com` address did not resolve. The related working site, `toscrape.com`, describes itself as a “Web Scraping Sandbox” and says its Books target is a fictional bookstore that wants to be scraped. It lists 1,000 items, pagination, up to 20 items per page, and no JavaScript requirement.
@@ -138,7 +217,7 @@ fetched_at: ISO datetime string, required
 - The User-Agent names `PoliteScraper`, the project owner, and the repository URL.
 - Every network request has a five-second timeout and accepts only HTTP 200 as page content.
 - Real requests are separated by at least 500 milliseconds; cached pages never wait or contact the site.
-- Catalogue pagination follows the site's own links and stops after three pages.
+- Catalogue pagination follows the site's own links and stops after ten pages.
 - A timeout or HTTP 5xx gets one retry after a short wait; HTTP 403 and 404 are not retried.
 - The cache is local and ignored by Git, so repeated development runs do not repeatedly request the site.
 
